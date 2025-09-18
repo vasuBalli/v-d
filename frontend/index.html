@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>1080p Video Downloader</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Segoe UI", sans-serif; }
+    body { 
+      background: linear-gradient(135deg, #1d2b64, #f8cdda); 
+      color: #333; 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      min-height: 100vh; 
+      padding: 20px;
+    }
+    .container {
+      background: white; 
+      padding: 30px; 
+      border-radius: 16px; 
+      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+      width: 100%; 
+      max-width: 500px; 
+      text-align: center; 
+      position: relative;
+      overflow: hidden;
+    }
+    h2 { margin-bottom: 20px; font-size: 26px; color: #1d2b64; }
+    .input-group { display: flex; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+    input {
+      flex: 1; 
+      padding: 14px; 
+      border: 2px solid #ccc; 
+      border-radius: 8px; 
+      outline: none;
+      font-size: 16px;
+      min-width: 150px;
+    }
+    button {
+      background: #1d2b64; 
+      color: white; 
+      border: none; 
+      padding: 14px 20px; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      font-size: 16px; 
+      transition: 0.3s;
+      flex-shrink: 0;
+    }
+    button:hover { background: #3a4ca8; }
+    #status { margin-top: 15px; color: #555; font-weight: 500; }
+    .preview {
+      margin-top: 20px; 
+      padding: 20px; 
+      border-radius: 14px; 
+      background: #f9f9f9; 
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+      text-align: center;
+    }
+    .preview img {
+      width: 100%; 
+      max-height: 300px; 
+      object-fit: cover; 
+      border-radius: 12px; 
+      margin-bottom: 12px;
+    }
+    .download-btn {
+      background: #28a745; 
+      border-radius: 10px; 
+      padding: 14px 24px; 
+      font-size: 18px; 
+      margin-top: 12px; 
+      width: 100%;
+      max-width: 250px;
+      transition: 0.3s;
+    }
+    .download-btn:hover { background: #218838; }
+
+    /* Timer Overlay */
+    .timer-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+      display: none; /* hidden by default */
+    }
+    .timer-text {
+      font-size: 20px;
+      color: #1d2b64;
+      font-weight: 600;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    @media (max-width: 480px) {
+      h2 { font-size: 22px; }
+      .input-group { display: none; }
+      .preview img { max-height: 400px; }
+      .download-btn { font-size: 20px; padding: 16px 26px; max-width: 100%; }
+      .container { padding: 20px; border-radius: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🎥 1080p Video Downloader</h2>
+
+    <div class="input-group">
+      <input id="url" placeholder="Enter YouTube URL" />
+      <button onclick="fetchInfo()">Get Info</button>
+    </div>
+
+    <div id="preview"></div>
+    <p id="status"></p>
+
+    <div class="timer-overlay" id="timerOverlay">
+      <div class="timer-text" id="timerText">Loading...</div>
+    </div>
+  </div>
+
+  <script>
+    let currentUrl = null;
+    const timerOverlay = document.getElementById("timerOverlay");
+    const timerText = document.getElementById("timerText");
+
+    function showTimer(text) { 
+      timerText.innerText = text; 
+      timerOverlay.style.display = "flex"; 
+    }
+    function hideTimer() { timerOverlay.style.display = "none"; }
+
+    async function fetchInfo() {
+      const urlInput = document.getElementById("url");
+      let url = urlInput.value;
+
+      if (!url && currentUrl) url = currentUrl;
+      if (!url) return alert("Enter a URL");
+
+      document.getElementById("status").innerText = "";
+      showTimer("⏳ Fetching video info...");
+
+      try {
+        const res = await fetch(`/info/?url=${encodeURIComponent(url)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        currentUrl = data.url;
+
+        document.getElementById("preview").innerHTML = `
+          <div class="preview">
+            <h3>${data.title}</h3>
+            <img src="${data.thumbnail}" alt="thumbnail" />
+            <button class="download-btn" onclick="download()">⬇️ Download</button>
+          </div>
+        `;
+      } catch (err) {
+        document.getElementById("status").innerText = "❌ Error: " + err.message;
+      } finally {
+        hideTimer();
+      }
+    }
+
+    async function download() {
+      if (!currentUrl) return alert("No video selected");
+      document.getElementById("status").innerText = "";
+
+      // Countdown before download
+      let seconds = 5; // 5-second countdown
+      showTimer(`⏳ Download starting in ${seconds}s...`);
+      const countdown = setInterval(() => {
+        seconds--;
+        if (seconds > 0) {
+          timerText.innerText = `⏳ Download starting in ${seconds}s...`;
+        } else {
+          clearInterval(countdown);
+          timerText.innerText = `⬇️ Downloading video...`;
+          startDownload();
+        }
+      }, 1000);
+    }
+
+    async function startDownload() {
+      try {
+        const response = await fetch(`/download/?url=${encodeURIComponent(currentUrl)}`);
+        if (!response.ok) throw new Error("Failed to download");
+
+        const contentLength = response.headers.get("Content-Length");
+        if (!contentLength) {
+          // fallback if unknown size
+          const blob = await response.blob();
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "video.mp4";
+          a.click();
+          document.getElementById("status").innerText = "✅ Download complete!";
+          hideTimer();
+          return;
+        }
+
+        const total = parseInt(contentLength, 10);
+        let loaded = 0;
+        const reader = response.body.getReader();
+        const chunks = [];
+
+        while(true) {
+          const {done, value} = await reader.read();
+          if(done) break;
+          chunks.push(value);
+          loaded += value.length;
+          const percent = Math.floor((loaded / total) * 100);
+          timerText.innerText = `⬇️ Downloading... ${percent}%`;
+        }
+
+        const blob = new Blob(chunks);
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "video.mp4";
+        a.click();
+
+        document.getElementById("status").innerText = "✅ Download complete!";
+      } catch (e) {
+        document.getElementById("status").innerText = "❌ Error: " + e.message;
+      } finally {
+        hideTimer();
+      }
+    }
+  </script>
+</body>
+</html>
